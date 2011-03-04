@@ -1,11 +1,35 @@
 require 'base64'
 
+MINIMUM_MAJOR_VERSION = 2
+MINIMUM_MINOR_VERSION = 1
+MINIMUM_REVISION = 2
+
 class RedisTimeSeries
     def initialize(prefix,timestep,redis)
         @prefix = prefix
         @timestep = timestep
         @redis = redis
+
+        fix_redis_compatibility
     end
+
+    def fix_redis_compatibility
+        version = @redis.info['redis_version'].split '.'
+
+        if version[0].to_i < MINIMUM_MAJOR_VERSION
+          @redis.instance_eval do
+            alias :getrange :substr
+          end
+        end
+
+        if version[0].to_i <= MINIMUM_MAJOR_VERSION or version[1].to_i <= MIMIMUM_MINOR_VERSION or version[2].to_i < MINIMUM_REVISION
+          @redis.instance_eval do
+            def strlen(key)
+              (self.get(key) || '').length
+            end
+          end
+        end
+      end
 
     def normalize_time(t)
         t = t.to_i
